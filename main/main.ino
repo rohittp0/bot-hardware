@@ -1,152 +1,101 @@
-#include <OneWire.h>
-#include <DallasTemperature.h>
+// #include <OneWire.h>
+// #include <DallasTemperature.h>
 
-// Data wire is plugged into digital pin 2 on the Arduino
-#define ONE_WIRE_BUS 2
+// // Data wire is plugged into digital pin 2 on the Arduino
+// #define ONE_WIRE_BUS 2
 
-#define SERIAL_INPUT_INTRUPT digitalPinToInterrupt(3)
+// #define SERIAL_INPUT_INTRUPT digitalPinToInterrupt(3)
 
-#define TRIG0 5
-#define ECHO0 6
+// #define M11 8
+// #define M12 9
+// #define M1E 10
 
-#define TRIG1 7
-#define ECHO1 8
+// #define M21 7
+// #define M22 6
+// #define M2E 5
 
-#define M11 22
-#define M12 24
-#define M1E 9
+// // Setup a oneWire instance to communicate with any OneWire device
+// OneWire oneWire(ONE_WIRE_BUS);
 
-#define M21 26
-#define M22 28
-#define M2E 10
+// // Pass oneWire reference to DallasTemperature library
+// DallasTemperature sensors(&oneWire);
 
-#define MIN_DISTANCE 40
 
-// Setup a oneWire instance to communicate with any OneWire device
-OneWire oneWire(ONE_WIRE_BUS);
+// long long unsigned time = 0;
 
-// Pass oneWire reference to DallasTemperature library
-DallasTemperature sensors(&oneWire);
+// void command_to_motor(char);
 
-volatile bool connected = false;
-volatile char command = '\0';
+// void setup(void) {
+//   sensors.begin();  // Start up the library
+//   Serial.begin(9600);
+//   Serial1.begin(9600);
 
-void command_to_motor(char);
+//   attachInterrupt(SERIAL_INPUT_INTRUPT, communicate, RISING);
 
-void setup(void) {
-  sensors.begin();  // Start up the library
-  Serial.begin(9600);
-  Serial1.begin(9600);
+//   for(int i=4; i<=10;i++)
+//     pinMode(i, OUTPUT);
+// }
 
-  attachInterrupt(SERIAL_INPUT_INTRUPT, communicate, RISING);
+// float get_temprature() {
+//   // Send the command to get temperatures
+//   sensors.requestTemperatures();
+//   return sensors.getTempCByIndex(0);
+// }
 
-  pinMode(TRIG0, OUTPUT);
-  pinMode(ECHO0, INPUT);
+// void communicate() {
+//   if (!Serial1.available())
+//     return;
 
-  pinMode(TRIG1, OUTPUT);
-  pinMode(ECHO1, INPUT);
+//   Serial.println("Communicating...");
+//   const char command = Serial1.readStringUntil('\n')[0];
+    
+//   Serial.println(command);
+//   command_to_motor(command);    
+// }
 
-  pinMode(M11, OUTPUT);
-  pinMode(M12, OUTPUT);
-  pinMode(M1E, OUTPUT);
+// void command_to_motor(char command) {
+//   analogWrite(M1E, 255);
+//   analogWrite(M2E, 255);
 
-  pinMode(M21, OUTPUT);
-  pinMode(M22, OUTPUT);
-  pinMode(M2E, OUTPUT);
-}
+//   if (command == 'U') {
+//     digitalWrite(M11, HIGH);
+//     digitalWrite(M12, LOW);
+//     digitalWrite(M21, HIGH);
+//     digitalWrite(M22, LOW);        
+//   } else if (command == 'D') {
+//     digitalWrite(M11, LOW);
+//     digitalWrite(M12, HIGH);
+//     digitalWrite(M21, LOW);
+//     digitalWrite(M22, HIGH);
+//   } else if (command == 'R') {
+//     digitalWrite(M11, HIGH);
+//     digitalWrite(M12, LOW);
+//     digitalWrite(M21, LOW);
+//     digitalWrite(M22, HIGH);
+//   } else if (command == 'L') {
+//     digitalWrite(M11, LOW);
+//     digitalWrite(M12, HIGH);
+//     digitalWrite(M21, HIGH);
+//     digitalWrite(M22, LOW);
+//   } else {
+//     digitalWrite(M11, LOW);
+//     digitalWrite(M12, LOW);
+//     digitalWrite(M21, LOW);
+//     digitalWrite(M22, LOW);
+//     analogWrite(M1E, 0);
+//     analogWrite(M2E, 0);
+//   }
+// }
 
-float get_temprature() {
-  // Send the command to get temperatures
-  sensors.requestTemperatures();
-  return sensors.getTempCByIndex(0);
-}
+// void loop(void) {
+//   if(millis() - time < 1000)
+//     return;
 
-float get_distance(bool side) {
-  intrupt(side ? TRIG0 : TRIG1);
-  float distance = pulseIn(side ? ECHO0 : ECHO1, HIGH, 64000) / 58.2;
+//   const float temp = get_temprature();     
 
-  return distance < 1 ? 10000 : distance;
-}
+//   if (Serial1.availableForWrite())
+//     printWithBuffer(temp);
 
-void communicate() {
-  Serial.println("Communicating...");
-
-  if (Serial1.available()) {
-    const char prev_command = command;
-    command = Serial1.readStringUntil('\n')[0];
-
-    Serial.println(command);
-
-    if (command != 'c' || command != 'C')
-      return;
-
-    connected = command != 'c';
-
-    command = connected ? prev_command : '\0';
-
-    command_to_motor(command);    
-  }
-}
-
-void set_motor(bool motor, int8_t direction, uint8_t speed = 128) {
-  Serial.println(String("Motor: ") + motor + ", Direction: " + direction + ", Speed: " + speed);
-  digitalWrite(motor ? M21 : M11, direction == 1 ? HIGH : LOW);
-  digitalWrite(motor ? M22 : M12, direction == -1 ? HIGH : LOW);
-  analogWrite(motor ? M2E : M1E, direction ? speed : 0);
-}
-
-void autopilot() {
-  float distance0 = get_distance(0);
-  float distance1 = get_distance(1);
-
-  if (distance0 > MIN_DISTANCE && distance1 > MIN_DISTANCE) {
-    set_motor(0, 1);
-    set_motor(1, 1);
-    return;
-  }
-
-  if (distance0 < MIN_DISTANCE * 0.8)
-    set_motor(0, -1);
-  else if (distance0 < MIN_DISTANCE)
-    set_motor(0, 0);
-
-  if (distance1 < MIN_DISTANCE * 0.8)
-    set_motor(1, -1);
-  else if (distance1 < MIN_DISTANCE)
-    set_motor(1, 0);
-}
-
-void command_to_motor(char command) {
-  if (command == 'U') {
-    set_motor(0, 1);
-    set_motor(1, 1);
-  } else if (command == 'D') {
-    set_motor(0, -1);
-    set_motor(1, -1);
-  } else if (command == 'R') {
-    set_motor(0, -1);
-    set_motor(1, 1);
-  } else if (command == 'L') {
-    set_motor(0, 1);
-    set_motor(1, -1);
-  } else {
-    set_motor(0, 0);
-    set_motor(1, 0);
-  }
-}
-
-void loop(void) {
-  // if (command == '\0' || !connected)
-  //   return autopilot();
-
-  delay(100);
-
-  if (!connected)
-    return;
-
-  if (Serial1.availableForWrite())
-    printWithBuffer(get_temprature());
-
-  Serial.println(get_temprature());
-  delay(400);
-}
+//   // Serial.println(temp);
+//   time = millis();
+// }
